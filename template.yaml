@@ -1,0 +1,62 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Cloud Resume Challenge visitor counter
+
+Globals:
+  Api:
+    Cors:
+      AllowMethods: "'GET,OPTIONS'"
+      AllowHeaders: "'content-type'"
+      AllowOrigin: "'*'"
+      AllowCredentials: false
+  Function:
+    Timeout: 3
+
+Resources:
+  VisitorCountFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: resume_visitor_count/
+      Handler: app.lambda_handler
+      Runtime: python3.9
+      Architectures:
+        - x86_64
+      Events:
+        GetCount:
+          Type: Api
+          Properties:
+            Path: /count
+            Method: get
+      Environment:
+        Variables:
+          DB_NAME: !Select [1, !Split ["/", !GetAtt ResumeVisitorDB.Arn]]
+          DB_KEY: ID
+      Policies:
+        - Version: "2012-10-17"
+          Statement:
+            - Sid: ResumeDynamoDBGetCountPolicy
+              Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:UpdateItem
+              Resource: !GetAtt "ResumeVisitorDB.Arn"
+
+  ResumeVisitorDB:
+    Type: AWS::Serverless::SimpleTable
+    Properties:
+      PrimaryKey:
+        Name: ID
+        Type: String
+      TableName: visitors_cloud
+      ProvisionedThroughput:
+        ReadCapacityUnits: 1
+        WriteCapacityUnits: 1
+
+Outputs:
+  GetCountApi:
+    Description: "API Gateway endpoint URL for Prod stage for get count function"
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/count"
+  VisitorCounterApi:
+    Description: "Base API Gateway URL for Prod stage for visitor counter API"
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod"
